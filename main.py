@@ -174,8 +174,8 @@ def start_scheduler():
         f"📬 Full report: daily at {config.DAILY_REPORT_HOUR:02d}:00")
 
     # Run initial check on startup
-    db.log("info", "Running startup check...")
-    task_check_promos()
+    db.log("info", "Running startup full report...")
+    send_full_report()
 
     try:
         scheduler.start()
