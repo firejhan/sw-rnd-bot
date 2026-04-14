@@ -228,6 +228,19 @@ def start_scheduler():
     print("🔍 启动时先做一次初始检查...")
     task_check_promos()
 
+    from delivery.telegram_bot import send_telegram
+    send_telegram(
+        config.TELEGRAM_BOT_TOKEN,
+        config.TELEGRAM_CHAT_ID,
+        '✅ *竞品情报系统已启动*
+
+📡 监控平台: ' + str(len(config.COMPETITORS)) + ' 个
+⏱️ 每 ' + str(config.CHECK_INTERVAL_HOURS) + ' 小时检查一次
+📬 每天 ' + str(config.DAILY_REPORT_HOUR) + ':00 发日报
+
+系统运行中，有变化会自动通知你。'
+    )
+
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
