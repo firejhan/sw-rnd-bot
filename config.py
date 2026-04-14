@@ -5,10 +5,9 @@ TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "")
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 FB_ACCESS_TOKEN    = os.environ.get("FB_ACCESS_TOKEN", "")
 
-CHECK_INTERVAL_HOURS = 6
+CHECK_INTERVAL_HOURS = 24
 DAILY_REPORT_HOUR    = 8
 DAILY_REPORT_MINUTE  = 0
-SEND_TEST_ON_STARTUP = True
 
 COMPETITORS = [
     {"name": "sureWin",  "promo_url": "https://www.mysurewin.com/en-my/promotion"},

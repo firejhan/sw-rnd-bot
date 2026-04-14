@@ -27,7 +27,17 @@ List all promotions. Format:
 *{name}*
 - Promo name | main condition
 
-One line per promo. No analysis."""}]
+Format each promo exactly like this:
+
+- 🎁 Promo Name
+  💰 Bonus: e.g. 100% up to MYR 500
+  🔄 Turnover: e.g. x20
+  💵 Min Deposit: e.g. MYR 30
+  📋 How to join: e.g. Deposit and bonus auto-credited
+  ⏰ Validity: e.g. Daily / One-time / Ongoing
+
+Only include fields that are mentioned. Skip fields with no info.
+No analysis, no recommendations."""}]
         )
         return msg.content[0].text
     except Exception as e:
