@@ -1,95 +1,72 @@
 """
-agents/analysis_agent.py — Claude 分析 Agent
-把原始抓取数据变成有价值的情报分析
+analysis_agent.py — 只整理促销活动列表，不做分析
+"""
+import anthropic
+from database import log
+
+
+def summarize_platform_promos(platform_name: str, raw_text: str, api_key: str) -> str:
+    """
+    把抓取到的原始内容，整理成清晰的活动列表
+    """
+    if not raw_text or "抓取失败" in raw_text or "无法连接" in raw_text:
+        return f"📊 *{platform_name}*\n⚠️ 页面无法读取\n"
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    prompt = f"""以下是 {platform_name} 促销页面的内容：
+
+{raw_text[:3000]}
+
+请把上面的内容整理成促销活动列表。
+
+格式要求：
+📊 *{platform_name}*
+
+💰 存款优惠
+- 活动名称 | 基本条件（如有）
+
+🎾 体育优惠
+- 活动名称 | 基本条件（如有）
+
+🃏 真人赌场
+- 活动名称 | 基本条件（如有）
+
+🎰 老虎机
+- 活动名称 | 基本条件（如有）
+
+🎁 其他优惠
+- 活动名称 | 基本条件（如有）
+
+规则：
+- 只列有的分类，没有的分类不要写
+- 每个活动一行，用 • 开头
+- 只写活动名称和最基本的条件（流水要求、最高奖励）
+- 不要写建议、不要做分析、不要评论
+- 如果内容不清楚就写活动名称就好
 """
 
-import anthropic
-from database import get_unreported_changes, log
-
-
-def build_analysis_prompt(changes: list, our_brands: dict, analysis_focus: str) -> str:
-    """
-    构建分析提示词
-    """
-    changes_text = ""
-    for i, ch in enumerate(changes, 1):
-        changes_text += f"""
-【变化 {i}】竞品: {ch['competitor']} | 类型: {ch['change_type']} | 重要程度: {ch['severity']}
-发现时间: {ch['detected_at']}
-变化摘要: {ch['summary']}
-
-旧内容（部分）:
-{ch.get('old_content', '无')[:400]}
-
-新内容（部分）:
-{ch.get('new_content', '无')[:400]}
----"""
-
-    our_brands_text = ""
-    for brand, info in our_brands.items():
-        our_brands_text += f"• {brand}: {info}\n"
-
-    return f"""你是一个专业的马来西亚/新加坡 iGaming 竞品情报分析师。
-
-{analysis_focus}
-
-我们的品牌现状：
-{our_brands_text}
-
-今天检测到的竞品变化如下：
-{changes_text}
-
-请用中文生成一份简洁有力的情报分析，包含以下部分：
-
-⚠️ **今日预警**（如果有urgent/high级别变化，必须重点说明）
-列出所有重要变化和可能对我们造成的影响
-
-📊 **促销动态**
-每个竞品的具体变化，用简短的一两句说清楚
-
-🎯 **机会与威胁**
-- 威胁：哪些竞品动作可能抢走我们用户？
-- 机会：竞品有什么弱点或空白我们可以利用？
-
-💡 **立刻可以做的3件事**
-具体的行动建议，针对我们的品牌（sureWin/maxwin/8win/winX）
-
-分析要实用、直接、有结论，不要废话。"""
-
-
-def analyze_changes(changes: list, our_brands: dict, analysis_focus: str,
-                    anthropic_api_key: str) -> str:
-    """
-    用 Claude 分析今日所有变化
-    """
-    if not changes:
-        return "今日无新变化，暂无需要分析的内容。"
-
-    client = anthropic.Anthropic(api_key=anthropic_api_key)
-
-    prompt = build_analysis_prompt(changes, our_brands, analysis_focus)
-
-    log("info", f"正在用 Claude 分析 {len(changes)} 条变化...")
-
     try:
-        message = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=800,
             messages=[{"role": "user", "content": prompt}]
         )
-        analysis = message.content[0].text
-        log("info", "Claude 分析完成")
-        return analysis
+        return msg.content[0].text
 
     except Exception as e:
-        log("error", f"Claude 分析失败: {e}")
-        return f"⚠️ 分析生成失败: {e}\n\n原始变化记录:\n" + "\n".join(
-            f"• {c['competitor']}: {c['summary']}" for c in changes
-        )
+        log("error", f"Claude 整理失败 [{platform_name}]: {e}")
+        return f"📊 *{platform_name}*\n⚠️ 整理失败: {str(e)[:50]}\n"
 
 
-def generate_no_change_summary() -> str:
-    """
-    今日无变化时的报告内容
-    """
-    return "✅ 今日所有竞品促销页面均无明显变化，市场稳定。"
+def build_daily_header(total_platforms: int) -> str:
+    from datetime import datetime
+    now = datetime.now()
+    weekdays = ["周一","周二","周三","周四","周五","周六","周日"]
+    return (
+        f"🗓 *促销情报日报*\n"
+        f"{now.strftime('%Y-%m-%d')} {weekdays[now.weekday()]} "
+        f"{now.strftime('%H:%M')}\n"
+        f"共 {total_platforms} 个平台\n"
+        f"{'─' * 25}"
+    )
