@@ -70,3 +70,16 @@ def build_daily_header(total_platforms: int) -> str:
         f"共 {total_platforms} 个平台\n"
         f"{'─' * 25}"
     )
+
+
+def analyze_changes(changes, our_brands, analysis_focus, anthropic_api_key):
+    if not changes:
+        return generate_no_change_summary()
+    lines = ["📋 *今日促销变动*\n"]
+    for c in changes:
+        lines.append(f"• *{c['competitor']}*: {c['summary']}")
+    return "\n".join(lines)
+
+
+def generate_no_change_summary():
+    return "✅ 今日所有平台促销页面均无变化"
