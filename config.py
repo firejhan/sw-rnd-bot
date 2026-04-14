@@ -1,7 +1,7 @@
 import os
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID", "-1003970288441")
+TELEGRAM_CHAT_ID   = "-1003970288441"
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 FB_ACCESS_TOKEN    = os.environ.get("FB_ACCESS_TOKEN", "")
 
