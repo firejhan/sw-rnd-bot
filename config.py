@@ -5,6 +5,12 @@ TELEGRAM_CHAT_ID   = "-1003970288441"
 ANTHROPIC_API_KEY  = os.environ.get("ANTHROPIC_API_KEY", "")
 FB_ACCESS_TOKEN    = os.environ.get("FB_ACCESS_TOKEN", "")
 
+FB_AD_KEYWORDS = [
+    "me88", "god55", "96m", "bk8", "maxim88",
+    "eclbet", "we1win", "playx", "maxwin", "uea8",
+    "plae8", "welcome bonus malaysia", "online casino malaysia", "U88",
+]
+
 CHECK_INTERVAL_HOURS = 24
 DAILY_REPORT_HOUR    = 8
 DAILY_REPORT_MINUTE  = 0
