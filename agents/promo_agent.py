@@ -33,7 +33,7 @@ def _scrape_playwright_direct(url):
             text = page.inner_text("body")
             browser.close()
             lines = [l.strip() for l in text.splitlines() if len(l.strip()) > 8]
-            return "\n".join(lines[:300])
+            return "\n".join(lines[:500])
     except Exception as e:
         log("warn", f"Playwright failed for {url}: {e}")
         return ""
@@ -54,7 +54,7 @@ def _scrape_via_scraperapi(url):
         for tag in soup(["script", "style", "nav", "footer", "header"]):
             tag.decompose()
         lines = [l.strip() for l in soup.get_text("\n").splitlines() if len(l.strip()) > 8]
-        result = "\n".join(lines[:300])
+        result = "\n".join(lines[:500])
         log("info", f"ScraperAPI success: {len(result)} chars")
         return result
     except Exception as e:

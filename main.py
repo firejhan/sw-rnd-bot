@@ -18,7 +18,7 @@ def summarize_promos(name, raw):
         client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=600,
+            max_tokens=1500,
             messages=[{"role": "user", "content": f"""This is the promotions page of {name}:
 
 {raw[:2500]}
@@ -50,7 +50,7 @@ def get_promo_changes(name, old_text, new_text):
         client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
         msg = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=600,
+            max_tokens=1500,
             messages=[{"role": "user", "content": f"""Compare these two versions of {name} promotions page.
 
 BEFORE:
