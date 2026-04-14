@@ -1,5 +1,6 @@
 import sys
 import time
+import anthropic
 from datetime import datetime
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -7,100 +8,83 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 import config
 import database as db
-from agents.promo_agent import run_promo_check
+from agents.promo_agent import run_promo_check, scrape_with_playwright
 from agents.ad_agent import run_ad_check
-from agents.analysis_agent import analyze_changes, generate_no_change_summary
-from delivery.telegram_bot import send_telegram, format_daily_report, format_alert_message
+from delivery.telegram_bot import send_telegram, format_alert_message
+
+
+def summarize_promos(name, raw):
+    try:
+        client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=600,
+            messages=[{"role": "user", "content": f"""This is the promotions page of {name}:
+
+{raw[:2500]}
+
+List all promotions found. Format:
+
+*{name}*
+- Promo name | main condition (turnover / max bonus / min deposit)
+- Promo name | main condition
+
+Rules: one line per promo, no analysis, no recommendations. If nothing found write: No promotions detected."""}]
+        )
+        return msg.content[0].text
+    except Exception as e:
+        return f"*{name}*\nError: {e}"
+
+
+def send_full_report():
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID,
+        f"*Promo Intel Report*\n{now}\n{len(config.COMPETITORS)} platforms\n{'─'*22}")
+    time.sleep(1)
+
+    for platform in config.COMPETITORS:
+        name = platform["name"]
+        url  = platform["promo_url"]
+        db.log("info", f"Scraping {name}...")
+        raw     = scrape_with_playwright(url)
+        summary = summarize_promos(name, raw)
+        send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, summary)
+        time.sleep(2)
+
+    send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, "Report complete.")
 
 
 def task_check_promos():
-    db.log("info", "=== promo check start ===")
+    db.log("info", "=== promo check ===")
     try:
         results = run_promo_check(config.COMPETITORS)
         for r in results:
-            if r.get("changed") and r.get("severity") == "urgent":
-                alert_msg = format_alert_message(
-                    competitor=r["competitor"],
-                    change_type="promo",
-                    summary="Promo page major change: " + ", ".join(r.get("keywords", [])[:5]),
-                    severity="urgent",
-                )
-                send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, alert_msg)
+            if r.get("changed"):
+                alert = format_alert_message(r["competitor"], "promo", "Promo page updated", r.get("severity","high"))
+                send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, alert)
     except Exception as e:
-        db.log("error", f"promo check failed: {e}")
-
-
-def task_check_ads():
-    if not config.FB_ACCESS_TOKEN:
-        return
-    db.log("info", "=== ad check start ===")
-    try:
-        run_ad_check(getattr(config, 'FB_AD_KEYWORDS', []), config.FB_ACCESS_TOKEN)
-    except Exception as e:
-        db.log("error", f"ad check failed: {e}")
+        db.log("error", f"promo check error: {e}")
 
 
 def task_daily_report():
-    db.log("info", "=== daily report start ===")
-    today = datetime.now().strftime("%Y-%m-%d")
+    db.log("info", "=== daily report ===")
     try:
-        changes = db.get_unreported_changes()
-        if changes:
-            analysis = analyze_changes(
-                changes=changes,
-                our_brands={},
-                analysis_focus="",
-                anthropic_api_key=config.ANTHROPIC_API_KEY,
-            )
-        else:
-            analysis = generate_no_change_summary()
-
-        report = format_daily_report(
-            analysis=analysis,
-            changes=changes,
-            competitor_count=len(config.COMPETITORS),
-        )
-        db.save_daily_report(today, report)
-        ok = send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, report)
-        if ok:
-            db.mark_report_sent(today)
-            if changes:
-                db.mark_changes_reported([c["id"] for c in changes])
-            db.log("info", "daily report sent ok")
+        send_full_report()
     except Exception as e:
-        db.log("error", f"daily report failed: {e}")
-        send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, f"Report error: {str(e)[:200]}")
-
-
-def run_once():
-    print("Running full check now...")
-    task_check_promos()
-    task_check_ads()
-    task_daily_report()
-    print("Done.")
+        db.log("error", f"daily report error: {e}")
+        send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, f"Report error: {e}")
 
 
 def start_scheduler():
     scheduler = BlockingScheduler(timezone="Asia/Kuala_Lumpur")
-
     scheduler.add_job(task_check_promos, IntervalTrigger(hours=config.CHECK_INTERVAL_HOURS), id="promo_check", replace_existing=True)
     scheduler.add_job(task_daily_report, CronTrigger(hour=config.DAILY_REPORT_HOUR, minute=config.DAILY_REPORT_MINUTE), id="daily_report", replace_existing=True)
-    scheduler.add_job(task_check_ads, CronTrigger(hour=(config.DAILY_REPORT_HOUR + 1) % 24, minute=0), id="ad_check", replace_existing=True)
 
-    print("=== Competitor Intel System Started ===")
-    print(f"Platforms: {len(config.COMPETITORS)}")
-    print(f"Check interval: every {config.CHECK_INTERVAL_HOURS} hours")
-    print(f"Daily report: {config.DAILY_REPORT_HOUR:02d}:{config.DAILY_REPORT_MINUTE:02d}")
+    send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID,
+        f"System started\nPlatforms: {len(config.COMPETITORS)}\nCheck every {config.CHECK_INTERVAL_HOURS}h\nDaily report at {config.DAILY_REPORT_HOUR:02d}:00")
 
-    msg = (
-        "System started\n\n"
-        f"Platforms: {len(config.COMPETITORS)}\n"
-        f"Check every {config.CHECK_INTERVAL_HOURS} hours\n"
-        f"Daily report at {config.DAILY_REPORT_HOUR:02d}:00"
-    )
-    send_telegram(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID, msg)
-
-    task_check_promos()
+    db.log("info", "Running initial full report...")
+    send_full_report()
 
     try:
         scheduler.start()
@@ -111,6 +95,6 @@ def start_scheduler():
 if __name__ == "__main__":
     db.init_db()
     if len(sys.argv) > 1 and sys.argv[1] == "--now":
-        run_once()
+        send_full_report()
     else:
         start_scheduler()
